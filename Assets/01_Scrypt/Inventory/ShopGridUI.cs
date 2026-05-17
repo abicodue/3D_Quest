@@ -43,7 +43,7 @@ public class ShopGridUI : MonoBehaviour
         {
             ShopSlotData slotData = viewIndex < slots.Count ? slots[viewIndex] : new ShopSlotData { itemId = string.Empty, price = 0 };
 
-            InventorySlotData displaySlot = slotData.IsEmpty ? new InventorySlotData { itemId = string.Empty, amount = 0 } : new InventorySlotData { itemId = slotData.itemId, amount = 1 };
+            InventorySlotData displaySlot = slotData.IsEmpty ? new InventorySlotData { itemId = string.Empty, amount = 0 } : new InventorySlotData { itemId = slotData.itemId, amount = slotData.price };
 
             slotViewInstances[viewIndex].Bind(displaySlot, itemCatalogManager);
             slotViewInstances[viewIndex].SetSelected(viewIndex == selectedSlotIndex);
