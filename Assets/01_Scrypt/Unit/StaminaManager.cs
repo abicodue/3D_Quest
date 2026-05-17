@@ -9,13 +9,13 @@ public class StaminaManager : MonoBehaviour
     [SerializeField] private TMP_Text staminaText;    
 
     [Header("Stamina")]
-    [SerializeField] private float maxStamina = 15f;
+    [SerializeField] private float maxStamina = 10f;
     public float MaxStamina => maxStamina;    
     
     private float currentStamina;
     public float CurrentStamina => currentStamina;
     
-    [SerializeField] private float staminaRecovery = 5f;
+    [SerializeField] private float staminaRecovery = 1f;
     public float StaminaRecovery => staminaRecovery;
 
 

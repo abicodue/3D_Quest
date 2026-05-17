@@ -101,8 +101,8 @@ public class Inventory : MonoBehaviour
 
         string normalizedId = itemId.Trim();
         string displayName = ResolveDisplayName(normalizedId);
-        pickUpMessages.Enqueue($"{displayName} È¹µæ x {amount}");
-        Debug.Log($"[Inventory] {displayName} È¹µæ x {amount}");
+        pickUpMessages.Enqueue($"{displayName} x {amount} È¹µæ");
+        Debug.Log($"[Inventory] {displayName} x {amount} È¹µæ");
     }
 
     public bool TryAddItems(string itemId, int amount)

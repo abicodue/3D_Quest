@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 6737040414461353468}
   - component: {fileID: 3522632921548240885}
   - component: {fileID: 5844463388507281182}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: WorldItem
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -30,7 +30,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: -0.0028100014, y: -0.33477, z: 0.37134993}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.5, y: 0.5, z: 0.5}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -125,7 +125,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3eaa478c8ade1aa44a1e32d6a93acfc2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WorldItem
-  itemCatalog: {fileID: 0}
+  itemCatalogManager: {fileID: 0}
   itemId: hp_potion
   itemDisplayName: HP Potion
   amount: 1

@@ -19,6 +19,7 @@ public class ItemCatalogEntry
     public ItemType category;
     public int maxStack;
     public Sprite icon;
+    public Material mat;
     public Color iconTint = Color.white;
 }
 

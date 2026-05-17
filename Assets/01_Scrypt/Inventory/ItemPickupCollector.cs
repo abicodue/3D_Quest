@@ -3,12 +3,19 @@ using UnityEngine;
 public class ItemPickupCollector : MonoBehaviour
 {
     [SerializeField]
-    Inventory inventory;
+    private Inventory inventory;
     [SerializeField]
-    ItemCatalogManager itemCatalogManager;
+    private ItemCatalogManager itemCatalogManager;
+    [SerializeField]
+    private LayerMask itemLayerMask;
 
     private void OnTriggerEnter(Collider other)
     {
+        if (((1 << other.gameObject.layer) & itemLayerMask) == 0)
+        {
+            return;
+        }
+        
         WorldItem worldItem = other.GetComponent<WorldItem>();
 
         if (worldItem == null)
