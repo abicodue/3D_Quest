@@ -4,17 +4,18 @@ using UnityEngine;
 
 public struct InventorySlotData
 {
+    // [유지] 인벤토리 슬롯은 저장용으로 itemId만 보관
     public string itemId;
     public int amount;
 
     public bool IsEmpty => string.IsNullOrEmpty(itemId) || amount <= 0;
-    
 }
 
 public class Inventory : MonoBehaviour
 {
     [SerializeField]
     private ItemCatalogManager itemCatalogManager;
+
     [SerializeField]
     private int slotCapacity = 10;
 
@@ -24,6 +25,7 @@ public class Inventory : MonoBehaviour
     public Dictionary<string, int> itemCountById = new Dictionary<string, int>();
 
     public event Action InventoryChanged;
+
     private readonly List<InventorySlotData> inventorySlots = new List<InventorySlotData>();
 
     public int SlotCapacity => slotCapacity;
@@ -35,19 +37,71 @@ public class Inventory : MonoBehaviour
         InitSlots();
     }
 
+    /*
+    [삭제] ItemCatalogEntry 조회 제거
+
     public bool TryGetCatalogEntry(string itemId, out ItemCatalogEntry entry)
     {
         entry = default;
         return itemCatalogManager != null && itemCatalogManager.TryGetEntry(itemId, out entry);
     }
+    */
+
+    // [변경] ItemData 직접 조회
+    public bool TryGetItemData(string itemId, out ItemData itemData)
+    {
+        itemData = null;
+        return itemCatalogManager != null && itemCatalogManager.TryGetItemData(itemId, out itemData);
+    }
+
+    // [추가] SO를 직접 넘겨도 인벤토리에 추가할 수 있게 함
+    public bool TryAddItems(ItemData itemData, int amount)
+    {
+        if (itemData == null)
+        {
+            return false;
+        }
+
+        return TryAddItems(itemData.Id, amount);
+    }
+
+    // [추가] SO를 직접 넘기는 획득용 함수
+    public bool TryAddItemsFromPickup(ItemData itemData, int amount, out int addedAmount)
+    {
+        addedAmount = 0;
+
+        if (itemData == null)
+        {
+            return false;
+        }
+
+        return TryAddItemsFromPickup(itemData.Id, amount, out addedAmount);
+    }
+
+    // [추가]
+    public bool TryRemoveItems(ItemData itemData, int amount)
+    {
+        if (itemData == null)
+        {
+            return false;
+        }
+
+        return TryRemoveItems(itemData.Id, amount);
+    }
 
     private void InitSlots()
     {
         inventorySlots.Clear();
+
         int safeCapacity = Mathf.Max(0, slotCapacity);
+
         for (int i = 0; i < safeCapacity; i++)
         {
-            inventorySlots.Add(new InventorySlotData { itemId = string.Empty, amount = 0 });
+            inventorySlots.Add(new InventorySlotData
+            {
+                itemId = string.Empty,
+                amount = 0
+            });
         }
     }
 
@@ -55,7 +109,11 @@ public class Inventory : MonoBehaviour
     {
         for (int i = 0; i < inventorySlots.Count; i++)
         {
-            inventorySlots[i] = new InventorySlotData { itemId = string.Empty, amount = 0 };
+            inventorySlots[i] = new InventorySlotData
+            {
+                itemId = string.Empty,
+                amount = 0
+            };
         }
     }
 
@@ -73,7 +131,9 @@ public class Inventory : MonoBehaviour
         {
             RemoveOneUnitFromSlotsFromEnd(lastItemId);
             DecreaseItemCount(lastItemId, 1);
+
             Debug.Log($"최근 획득 아이템 취소: {lastItemId}");
+
             PrintInventory();
             RaiseInventoryChanged();
         }
@@ -84,7 +144,7 @@ public class Inventory : MonoBehaviour
         if (pickUpMessages.Count > 0)
         {
             string message = pickUpMessages.Dequeue();
-            Debug.Log($"{message}");
+            Debug.Log(message);
         }
         else
         {
@@ -101,6 +161,7 @@ public class Inventory : MonoBehaviour
 
         string normalizedId = itemId.Trim();
         string displayName = ResolveDisplayName(normalizedId);
+
         pickUpMessages.Enqueue($"{displayName} x {amount} 획득");
         Debug.Log($"[Inventory] {displayName} x {amount} 획득");
     }
@@ -115,7 +176,7 @@ public class Inventory : MonoBehaviour
         return TryAddItemsInternal(itemId, amount, true, out addedAmount);
     }
 
-    public bool TryAddItemsInternal (string itemId, int amount, bool recordPerUnitForUndo, out int addedAmount)
+    private bool TryAddItemsInternal(string itemId, int amount, bool recordPerUnitForUndo, out int addedAmount)
     {
         addedAmount = 0;
 
@@ -128,7 +189,7 @@ public class Inventory : MonoBehaviour
 
         if (!IsRegisteredItemId(itemId))
         {
-            Debug.LogWarning($"not registered itemId: {itemId}");
+            Debug.LogWarning($"[Inventory] 등록되지 않은 itemId: {itemId}");
             return false;
         }
 
@@ -155,12 +216,13 @@ public class Inventory : MonoBehaviour
 
         if (placed != toAdd)
         {
-            Debug.LogWarning($" placed: {placed} not matching with expected {toAdd}. do check logic.");
+            Debug.LogWarning($"[Inventory] placed: {placed}, expected: {toAdd}. 로직 확인 필요.");
         }
 
         for (int i = 0; i < placed; i++)
         {
             itemIds.Add(itemId);
+
             if (recordPerUnitForUndo)
             {
                 undoStack.Push(itemId);
@@ -168,8 +230,11 @@ public class Inventory : MonoBehaviour
         }
 
         IncreaseItemCount(itemId, placed);
+
         addedAmount = placed;
+
         RaiseInventoryChanged();
+
         return true;
     }
 
@@ -190,15 +255,22 @@ public class Inventory : MonoBehaviour
         RemoveAmountFromSlots(itemId, amount);
         RemoveFromItemIdList(itemId, amount);
         DecreaseItemCount(itemId, amount);
+
         RaiseInventoryChanged();
+
         return true;
     }
 
     public bool HasAtLeast(string itemId, int amount)
     {
-        if (string.IsNullOrWhiteSpace(itemId) || amount <= 0)
+        if (amount <= 0)
         {
-            return amount == 0;
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(itemId))
+        {
+            return false;
         }
 
         return GetItemCount(itemId.Trim()) >= amount;
@@ -222,19 +294,23 @@ public class Inventory : MonoBehaviour
     private void PrintInventory()
     {
         Debug.Log("[Inventory: List]");
+
         for (int i = 0; i < itemIds.Count; i++)
         {
             Debug.Log(itemIds[i]);
         }
+
         Debug.Log($"[Inventory Count] : {itemIds.Count}");
 
         Debug.Log("[Inventory: Dictionary]");
+
         foreach (KeyValuePair<string, int> pair in itemCountById)
         {
             Debug.Log($"{pair.Key} : {pair.Value}");
         }
 
         Debug.Log("[Inventory: Slots]");
+
         for (int i = 0; i < inventorySlots.Count; i++)
         {
             InventorySlotData slot = inventorySlots[i];
@@ -246,24 +322,23 @@ public class Inventory : MonoBehaviour
     {
         InventoryChanged?.Invoke();
     }
-    
+
     private int GetTotalRoomForItemInSlots(string itemId)
     {
         int maxStack = GetMaxStackForItem(itemId);
         long room = 0;
-        
+
         for (int i = 0; i < inventorySlots.Count; i++)
         {
             InventorySlotData slot = inventorySlots[i];
 
             if (slot.IsEmpty)
             {
-                room += maxStack == int.MaxValue ? int.MaxValue : maxStack;
+                room += maxStack;
             }
             else if (slot.itemId == itemId)
             {
-                long cap = maxStack == int.MaxValue ? int.MaxValue : maxStack;
-                room += cap - slot.amount;
+                room += maxStack - slot.amount;
             }
         }
 
@@ -283,16 +358,6 @@ public class Inventory : MonoBehaviour
 
             if (slot.IsEmpty || slot.itemId != itemId)
             {
-                continue;
-            }
-
-            if (maxStack == int.MaxValue)
-            {
-                if (slot.amount < int.MaxValue)
-                {
-                    return i;
-                }
-
                 continue;
             }
 
@@ -344,21 +409,23 @@ public class Inventory : MonoBehaviour
             }
 
             InventorySlotData slot = inventorySlots[slotIndex];
+
             int currentInSlot = slot.IsEmpty ? 0 : slot.amount;
-            int cap = maxStack == int.MaxValue ? int.MaxValue : maxStack;
-            long canFitLong = (long)cap - currentInSlot;
-            int canFit = canFitLong > int.MaxValue ? int.MaxValue : (int)canFitLong;
+            int canFit = maxStack - currentInSlot;
 
             if (canFit <= 0)
             {
-                Debug.LogWarning("[Inventory] 불일치");
+                Debug.LogWarning("[Inventory] 슬롯 계산 불일치");
                 break;
             }
 
             int put = Mathf.Min(remaining, canFit);
+
             slot.itemId = itemId;
             slot.amount = currentInSlot + put;
+
             inventorySlots[slotIndex] = slot;
+
             remaining -= put;
             totalPlaced += put;
         }
@@ -370,7 +437,7 @@ public class Inventory : MonoBehaviour
     {
         int remaining = amount;
 
-        for (int i = inventorySlots.Count -1; i >= 0 && remaining > 0; i--)
+        for (int i = inventorySlots.Count - 1; i >= 0 && remaining > 0; i--)
         {
             InventorySlotData slot = inventorySlots[i];
 
@@ -380,6 +447,7 @@ public class Inventory : MonoBehaviour
             }
 
             int take = Math.Min(slot.amount, remaining);
+
             slot.amount -= take;
             remaining -= take;
 
@@ -405,7 +473,7 @@ public class Inventory : MonoBehaviour
             }
 
             slot.amount--;
-            
+
             if (slot.amount <= 0)
             {
                 slot.itemId = string.Empty;
@@ -467,7 +535,7 @@ public class Inventory : MonoBehaviour
     {
         int removed = 0;
 
-        for (int i = itemIds.Count - 1; i >= 0 && removed <amount; i--)
+        for (int i = itemIds.Count - 1; i >= 0 && removed < amount; i--)
         {
             if (itemIds[i] == itemId)
             {
@@ -486,7 +554,7 @@ public class Inventory : MonoBehaviour
 
         if (itemCatalogManager == null)
         {
-            Debug.LogWarning("[Inventory] ItemCatalogManager 참조가 없습니다. 카탈로그 기반 검증이 실패할 수 있습니다.");
+            Debug.LogWarning("[Inventory] ItemCatalogManager 참조가 없습니다. 아이템 등록 검증이 실패할 수 있습니다.");
         }
     }
 }

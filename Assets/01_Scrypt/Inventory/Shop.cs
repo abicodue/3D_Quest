@@ -5,29 +5,112 @@ using UnityEngine;
 [Serializable]
 public struct ShopSlotData
 {
+    /*
+    [삭제] 기존 문자열 itemId 방식
+
     public string itemId;
     public int price;
-
     public bool IsEmpty => string.IsNullOrEmpty(itemId) || price <= 0;
+    */
 
+    // [변경] 상점 상품도 ItemData SO 직접 참조
+    public ItemData itemData;
+
+    // [유지] 0 이하로 두면 ItemData.buyPrice 사용
+    public int price;
+
+    public ItemData ItemData => itemData;
+
+    public string ItemId
+    {
+        get
+        {
+            return itemData != null ? itemData.Id : string.Empty;
+        }
+    }
+
+    public string DisplayName
+    {
+        get
+        {
+            return itemData != null ? itemData.DisplayName : string.Empty;
+        }
+    }
+
+    public int Price
+    {
+        get
+        {
+            if (price > 0)
+            {
+                return price;
+            }
+
+            return itemData != null ? itemData.BuyPrice : 0;
+        }
+    }
+
+    public bool IsEmpty
+    {
+        get
+        {
+            return itemData == null || string.IsNullOrWhiteSpace(ItemId) || Price <= 0;
+        }
+    }
 }
 
 public struct BuyRecord
 {
+    /*
+    [삭제] 기존 문자열 저장 방식
+
     public string itemId;
     public int price;
+    */
+
+    // [변경]
+    public ItemData itemData;
+    public int price;
+
+    public string ItemId
+    {
+        get
+        {
+            return itemData != null ? itemData.Id : string.Empty;
+        }
+    }
+
+    public string DisplayName
+    {
+        get
+        {
+            return itemData != null ? itemData.DisplayName : string.Empty;
+        }
+    }
 }
 
 public class Shop : MonoBehaviour
 {
+    /*
+    [삭제] Shop 자체에서는 Catalog가 필요 없어짐.
+    상점 슬롯이 ItemData를 직접 들고 있음.
+
     [SerializeField]
     private ItemCatalogManager itemCatalogManager;
+    */
+
     [SerializeField]
     private Inventory playerInventory;
+
     [SerializeField]
     private int slotCapacity = 10;
+
     [SerializeField]
     private ShopSlotData[] initialShopSlots;
+
+    [Header("Currency")]
+    [SerializeField]
+    private string currencyItemId = "item_coin";
 
     public Queue<string> buyMessages = new Queue<string>();
     public Stack<BuyRecord> undoStack = new Stack<BuyRecord>();
@@ -36,25 +119,30 @@ public class Shop : MonoBehaviour
 
     public int SlotCapacity => slotCapacity;
     public IReadOnlyList<ShopSlotData> ShopSlots => shopSlots;
+    public string CurrencyItemId => currencyItemId;
 
     private void Awake()
     {
-        EnsureCatalogReference();
+        EnsureInventoryReference();
         InitSlots();
     }
+
+    /*
+    [삭제] ItemCatalogEntry 조회 제거
 
     public bool TryGetCatalogEntry(string itemId, out ItemCatalogEntry entry)
     {
         entry = default;
         return itemCatalogManager != null && itemCatalogManager.TryGetEntry(itemId, out entry);
     }
+    */
 
     private void InitSlots()
     {
         shopSlots.Clear();
-        
+
         int safeCapacity = Mathf.Max(0, slotCapacity);
-        
+
         for (int i = 0; i < safeCapacity; i++)
         {
             if (initialShopSlots != null && i < initialShopSlots.Length)
@@ -63,10 +151,12 @@ public class Shop : MonoBehaviour
             }
             else
             {
-                shopSlots.Add(new ShopSlotData { itemId = string.Empty, price = 0 });
+                shopSlots.Add(new ShopSlotData
+                {
+                    itemData = null,
+                    price = 0
+                });
             }
-            
-           
         }
     }
 
@@ -74,16 +164,20 @@ public class Shop : MonoBehaviour
     {
         for (int i = 0; i < shopSlots.Count; i++)
         {
-            shopSlots[i] = new ShopSlotData { itemId = string.Empty, price = 0 };
+            shopSlots[i] = new ShopSlotData
+            {
+                itemData = null,
+                price = 0
+            };
         }
-    }    
+    }
 
     public void ProcessNextMessage()
     {
         if (buyMessages.Count > 0)
         {
             string message = buyMessages.Dequeue();
-            Debug.Log($"{message}");
+            Debug.Log(message);
         }
         else
         {
@@ -91,47 +185,40 @@ public class Shop : MonoBehaviour
         }
     }
 
-    public void EnqueueBuyMessage(string itemId, int price)
+    // [변경] string itemId 대신 ItemData를 받음
+    public void EnqueueBuyMessage(ItemData itemData, int price)
     {
-        if (string.IsNullOrWhiteSpace(itemId) || price <= 0)
+        if (itemData == null || price <= 0)
         {
             return;
         }
 
-        string normalizedId = itemId.Trim();
-        string displayName = ResolveDisplayName(normalizedId);
-
         undoStack.Push(new BuyRecord
         {
-            itemId = normalizedId,
+            itemData = itemData,
             price = price
         });
 
-        buyMessages.Enqueue($"{displayName} 구매 / 가격: {price}");
-        Debug.Log($"[Shop] {displayName} 구매 / 가격: {price}");
-    }      
+        buyMessages.Enqueue($"{itemData.DisplayName} 구매 / 가격: {price}");
+        Debug.Log($"[Shop] {itemData.DisplayName} 구매 / 가격: {price}");
+    }
 
-    private string ResolveDisplayName(string itemId)
+    private void EnsureInventoryReference()
     {
-        return itemCatalogManager != null ? itemCatalogManager.ResolveDisplayName(itemId) : itemId;
-    }    
-
-    private void EnsureCatalogReference()
-    {
-        if (itemCatalogManager == null)
+        if (playerInventory == null)
         {
-            itemCatalogManager = FindFirstObjectByType<ItemCatalogManager>();
+            playerInventory = FindFirstObjectByType<Inventory>();
         }
 
-        if (itemCatalogManager == null)
+        if (playerInventory == null)
         {
-            Debug.LogWarning("[Shop] ItemCatalogManager 참조가 없습니다. 카탈로그 기반 검증이 실패할 수 있습니다.");
+            Debug.LogWarning("[Shop] Player Inventory 참조가 없습니다.");
         }
     }
 
     public void UndoLastBuy()
     {
-        if (playerInventory == null )
+        if (playerInventory == null)
         {
             return;
         }
@@ -143,18 +230,21 @@ public class Shop : MonoBehaviour
         }
 
         BuyRecord lastBuy = undoStack.Pop();
-        string displayName = ResolveDisplayName(lastBuy.itemId);
 
-        if (playerInventory.TryRemoveItems(lastBuy.itemId, 1))
+        if (lastBuy.itemData == null)
         {
-            playerInventory.TryAddItems("coin", lastBuy.price);
-            Debug.Log($"[Shop] {displayName} 환불 / {lastBuy.price} coin 반환");
+            return;
+        }
+
+        if (playerInventory.TryRemoveItems(lastBuy.itemData, 1))
+        {
+            playerInventory.TryAddItems(currencyItemId, lastBuy.price);
+            Debug.Log($"[Shop] {lastBuy.DisplayName} 환불 / {lastBuy.price} {currencyItemId} 반환");
         }
         else
         {
             undoStack.Push(lastBuy);
-            Debug.Log($"[Shop] 환불 실패: {displayName}");
+            Debug.Log($"[Shop] 환불 실패: {lastBuy.DisplayName}");
         }
     }
-
 }

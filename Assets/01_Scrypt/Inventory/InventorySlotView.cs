@@ -8,8 +8,10 @@ public class InventorySlotView : MonoBehaviour, IPointerClickHandler
 {
     [SerializeField]
     private Image iconImage;
+
     [SerializeField]
     private TMP_Text amountText;
+
     [SerializeField]
     private GameObject emptyVisual;
 
@@ -31,27 +33,10 @@ public class InventorySlotView : MonoBehaviour, IPointerClickHandler
         OnClicked?.Invoke(this, eventData.button);
     }
 
-    private void SetIconAlpha(float alpha)
-    {
-        if (iconImage == null)
-        {
-            return;
-        }
-
-        Color color = iconImage.color;
-        color.a = alpha;
-        iconImage.color = color;
-    }
-
     public void SetSelected(bool selected)
     {
         isSelected = selected;
         SetSelectedVisual();
-    }
-
-    private void SetSelectedVisual()
-    {
-        SetIconAlpha(isSelected ? 0.3f : 1f);
     }
 
     public void Bind(InventorySlotData slot, IItemCatalogReader catalogReader)
@@ -67,19 +52,27 @@ public class InventorySlotView : MonoBehaviour, IPointerClickHandler
             emptyVisual.SetActive(false);
         }
 
+        /*
+        [삭제] ItemCatalogEntry 체제 제거
+
         ItemCatalogEntry entry = default;
         bool hasCatalogEntry = catalogReader != null && catalogReader.TryGetEntry(slot.itemId, out entry);
+        */
+
+        // [변경] ItemData 직접 조회
+        ItemData itemData = null;
+        bool hasItemData = catalogReader != null && catalogReader.TryGetItemData(slot.itemId, out itemData);
 
         if (iconImage != null)
         {
-            Sprite iconSprite = hasCatalogEntry ? entry.icon : null;
+            Sprite iconSprite = hasItemData ? itemData.icon : null;
+
             iconImage.enabled = iconSprite != null;
             iconImage.sprite = iconSprite;
 
-            if (hasCatalogEntry)
+            if (hasItemData)
             {
-                Color tint = entry.iconTint.a < 0.01f ? Color.white : entry.iconTint;
-                iconImage.color = tint;
+                iconImage.color = itemData.IconTint;
             }
             else
             {
@@ -87,7 +80,6 @@ public class InventorySlotView : MonoBehaviour, IPointerClickHandler
             }
 
             SetSelectedVisual();
-
         }
 
         if (amountText != null)
@@ -103,17 +95,35 @@ public class InventorySlotView : MonoBehaviour, IPointerClickHandler
         {
             iconImage.enabled = false;
             iconImage.sprite = null;
+            iconImage.color = Color.white;
         }
 
         if (amountText != null)
         {
             amountText.gameObject.SetActive(false);
-            amountText.text = string.Empty;            
+            amountText.text = string.Empty;
         }
 
         if (emptyVisual != null)
         {
             emptyVisual.SetActive(true);
         }
+    }
+
+    private void SetIconAlpha(float alpha)
+    {
+        if (iconImage == null)
+        {
+            return;
+        }
+
+        Color color = iconImage.color;
+        color.a = alpha;
+        iconImage.color = color;
+    }
+
+    private void SetSelectedVisual()
+    {
+        SetIconAlpha(isSelected ? 0.3f : 1f);
     }
 }

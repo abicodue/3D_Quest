@@ -1,48 +1,77 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum ItemType
-{
-    None,
-    Key,
-    Quest,
-    Consumable,
-    Gold,
-}
+/*
+[삭제] ItemCatalogEntry 체제 제거
+
+using System;
 
 [Serializable]
 public class ItemCatalogEntry
 {
     public string itemId;
     public string displayName;
+    public string description;
     public ItemType category;
     public int maxStack;
+    public bool canPickup = true;
     public Sprite icon;
     public Material mat;
     public Color iconTint = Color.white;
+
+    [NonSerialized]
+    public ItemData sourceData;
+
+    public static ItemCatalogEntry FromItemData(ItemData data)
+    {
+        return new ItemCatalogEntry
+        {
+            itemId = data.itemId,
+            displayName = data.itemName,
+            description = data.description,
+            category = data.itemType,
+            maxStack = data.maxStackCount,
+            canPickup = data.canPickup,
+            icon = data.icon,
+            mat = data.mat,
+            iconTint = data.iconTint,
+            sourceData = data
+        };
+    }
 }
+*/
 
 public class ItemCatalogManager : MonoBehaviour, IItemCatalogReader
 {
+    [Header("ScriptableObject Item Data")]
+    [SerializeField]
+    private ItemData[] itemDataAssets; // [변경] ItemData SO만 등록
+
+    /*
+    [삭제] 기존 수동 Entry 배열 제거
+
     [SerializeField]
     private ItemCatalogEntry[] itemCatalogEntries;
+    */
 
-    private readonly Dictionary<string, ItemCatalogEntry> catalogById = new Dictionary<string, ItemCatalogEntry>();
+    // [변경] ItemCatalogEntry 딕셔너리 대신 ItemData 딕셔너리 사용
+    private readonly Dictionary<string, ItemData> itemDataById = new Dictionary<string, ItemData>();
 
     private void Awake()
     {
-        EnsureCatalogNotEmptyForRuntime();
         BuildCatalogDictionary();
     }
-    public int GetMaxStack(string itemId)
+
+    public bool TryGetItemData(string itemId, out ItemData itemData)
     {
-        if (!TryGetEntry(itemId, out ItemCatalogEntry entry))
+        itemData = null;
+
+        if (string.IsNullOrWhiteSpace(itemId))
         {
-            return 0;
+            return false;
         }
 
-        return entry.maxStack <= 0 ? int.MaxValue : entry.maxStack;
+        return itemDataById.TryGetValue(itemId.Trim(), out itemData);
     }
 
     public bool IsRegistered(string itemId)
@@ -52,79 +81,91 @@ public class ItemCatalogManager : MonoBehaviour, IItemCatalogReader
             return false;
         }
 
-        return catalogById.ContainsKey(itemId.Trim());
+        return itemDataById.ContainsKey(itemId.Trim());
+    }
+
+    public int GetMaxStack(string itemId)
+    {
+        if (!TryGetItemData(itemId, out ItemData itemData))
+        {
+            return 0;
+        }
+
+        return itemData.MaxStack;
     }
 
     public string ResolveDisplayName(string itemId)
     {
-        if (TryGetEntry(itemId, out ItemCatalogEntry entry) && !string.IsNullOrEmpty(entry.displayName))
+        if (TryGetItemData(itemId, out ItemData itemData))
         {
-            return entry.displayName;
+            return itemData.DisplayName;
         }
 
         return string.IsNullOrWhiteSpace(itemId) ? string.Empty : itemId.Trim();
     }
 
-    public bool TryGetEntry(string itemId, out ItemCatalogEntry entry)
+    // [추가] 아이콘이 필요한 스크립트에서 직접 쓸 수 있음
+    public Sprite ResolveIcon(string itemId)
     {
-        entry = default;
-
-        if (string.IsNullOrWhiteSpace(itemId))
+        if (TryGetItemData(itemId, out ItemData itemData))
         {
-            return false;
+            return itemData.icon;
         }
 
-        return catalogById.TryGetValue(itemId.Trim(), out entry);
+        return null;
     }
 
-    private void EnsureCatalogNotEmptyForRuntime()
+    // [추가]
+    public Color ResolveIconTint(string itemId)
     {
-        if (itemCatalogEntries != null && itemCatalogEntries.Length > 0)
+        if (TryGetItemData(itemId, out ItemData itemData))
         {
-            return;
+            return itemData.IconTint;
         }
 
-        itemCatalogEntries = new[]
-        {
-            new ItemCatalogEntry { category = ItemType.Consumable, displayName = "HP Potion", icon = null, iconTint = Color.white, itemId = "hp_potion", maxStack = 10}
-        };
-        Debug.LogWarning("[ItemCatalogManager] itemCatalogEntries empty");
+        return Color.white;
     }
 
     private void BuildCatalogDictionary()
     {
-        catalogById.Clear();
+        itemDataById.Clear();
 
-        if (itemCatalogEntries == null)
+        if (itemDataAssets == null || itemDataAssets.Length == 0)
         {
-            Debug.Log("[ItemCatalogManager] itemCatalogEntries empty");
+            Debug.LogWarning("[ItemCatalogManager] 등록된 ItemData SO가 없습니다.");
             return;
         }
 
-        for (int i = 0; i < itemCatalogEntries.Length; i++)
+        for (int i = 0; i < itemDataAssets.Length; i++)
         {
-            ItemCatalogEntry entry = itemCatalogEntries[i];
+            ItemData itemData = itemDataAssets[i];
 
-            if (string.IsNullOrWhiteSpace(entry.itemId))
+            if (itemData == null)
             {
-                Debug.LogWarning($"[ItemCatalogManager] itemCatalogEntries[{i}] empty");
+                Debug.LogWarning($"[ItemCatalogManager] itemDataAssets[{i}]가 비어 있습니다.");
                 continue;
             }
 
-            string normalizedId = entry.itemId.Trim();
-            if (catalogById.ContainsKey(normalizedId))
-            {
-                Debug.LogWarning($"[ItemCatalogManager] {normalizedId} duplicatedId");
-                continue;
-            }
-
-            /*
-            ItemCatalogEntry stored = entry;
-            stored.id = normalizedId;
-            catalogById.Add(normalizedId, stored);
-            */
-
-            catalogById.Add(normalizedId, entry);
+            RegisterItemData(itemData, i);
         }
+    }
+
+    private void RegisterItemData(ItemData itemData, int index)
+    {
+        string normalizedId = itemData.Id;
+
+        if (string.IsNullOrWhiteSpace(normalizedId))
+        {
+            Debug.LogWarning($"[ItemCatalogManager] itemDataAssets[{index}]의 itemId가 비어 있습니다.");
+            return;
+        }
+
+        if (itemDataById.ContainsKey(normalizedId))
+        {
+            Debug.LogWarning($"[ItemCatalogManager] 중복 itemId 발견: {normalizedId}");
+            return;
+        }
+
+        itemDataById.Add(normalizedId, itemData);
     }
 }

@@ -3,13 +3,16 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 
 public class ShopGridUI : MonoBehaviour
-{    
+{
     [SerializeField]
     private Inventory playerInventory;
+
     [SerializeField]
     private ItemCatalogManager itemCatalogManager;
+
     [SerializeField]
     private RectTransform slotContainer;
+
     [SerializeField]
     private InventorySlotView slotPrefab;
 
@@ -21,9 +24,13 @@ public class ShopGridUI : MonoBehaviour
 
     private void Start()
     {
-        BuildSlotViews();
-        RedrawAllSlots();
-    }    
+        // [변경] shop이 연결된 뒤 SetShop에서 슬롯을 만들기 때문에 여기서는 null일 수 있음
+        if (shop != null)
+        {
+            BuildSlotViews();
+            RedrawAllSlots();
+        }
+    }
 
     public void RefreshDisplay()
     {
@@ -41,10 +48,17 @@ public class ShopGridUI : MonoBehaviour
 
         for (int viewIndex = 0; viewIndex < slotViewInstances.Count; viewIndex++)
         {
-            ShopSlotData slotData = viewIndex < slots.Count ? slots[viewIndex] : new ShopSlotData { itemId = string.Empty, price = 0 };
+            ShopSlotData slotData =
+                viewIndex < slots.Count
+                    ? slots[viewIndex]
+                    : new ShopSlotData { itemData = null, price = 0 };
 
-            InventorySlotData displaySlot = slotData.IsEmpty ? new InventorySlotData { itemId = string.Empty, amount = 0 } : new InventorySlotData { itemId = slotData.itemId, amount = slotData.price };
+            InventorySlotData displaySlot =
+                slotData.IsEmpty
+                    ? new InventorySlotData { itemId = string.Empty, amount = 0 }
+                    : new InventorySlotData { itemId = slotData.ItemId, amount = slotData.Price };
 
+            // [변경] ItemData SO 기반 Catalog에서 UI 아이콘 조회
             slotViewInstances[viewIndex].Bind(displaySlot, itemCatalogManager);
             slotViewInstances[viewIndex].SetSelected(viewIndex == selectedSlotIndex);
         }
@@ -76,7 +90,7 @@ public class ShopGridUI : MonoBehaviour
         for (int slotIndex = 0; slotIndex < capacity; slotIndex++)
         {
             InventorySlotView slotInstance = Instantiate(slotPrefab, slotContainer);
-            slotInstance.gameObject.name = $"Slot_{slotIndex:D2}";
+            slotInstance.gameObject.name = $"ShopSlot_{slotIndex:D2}";
 
             int capturedIndex = slotIndex;
             slotInstance.OnClicked += (slotView, button) => OnSlotClicked(capturedIndex, button);
@@ -105,7 +119,12 @@ public class ShopGridUI : MonoBehaviour
 
     private void BuySlotItem(int slotIndex)
     {
-        if (shop == null || playerInventory == null || slotIndex < 0 || slotIndex >= shop.ShopSlots.Count)
+        if (shop == null || playerInventory == null)
+        {
+            return;
+        }
+
+        if (slotIndex < 0 || slotIndex >= shop.ShopSlots.Count)
         {
             return;
         }
@@ -117,22 +136,36 @@ public class ShopGridUI : MonoBehaviour
             return;
         }
 
-        if (!playerInventory.HasAtLeast("coin", slotData.price))
+        string currencyItemId = shop.CurrencyItemId;
+        int price = slotData.Price;
+
+        if (!playerInventory.HasAtLeast(currencyItemId, price))
         {
-            Debug.Log($"돈이 충분하지 않습니다.");
+            Debug.Log("돈이 충분하지 않습니다.");
             return;
         }
 
+        /*
+        [삭제] 기존 string itemId 구매 방식
+
         if (!playerInventory.TryAddItems(slotData.itemId, 1))
         {
-            Debug.Log($"인벤토리에 공간이 충분하지 않습니다.");
+            Debug.Log("인벤토리에 공간이 충분하지 않습니다.");
             return;
-        }        
+        }
+        */
 
-        playerInventory.TryRemoveItems("coin", slotData.price);
-        shop.EnqueueBuyMessage(slotData.itemId, slotData.price);
+        // [변경] ItemData SO를 직접 넘겨 인벤토리에 추가
+        if (!playerInventory.TryAddItems(slotData.ItemData, 1))
+        {
+            Debug.Log("인벤토리에 공간이 충분하지 않습니다.");
+            return;
+        }
+
+        playerInventory.TryRemoveItems(currencyItemId, price);
+        shop.EnqueueBuyMessage(slotData.ItemData, price);
     }
-    
+
     public void BuySelectedItem()
     {
         if (selectedSlotIndex < 0)
@@ -141,7 +174,6 @@ public class ShopGridUI : MonoBehaviour
         }
 
         BuySlotItem(selectedSlotIndex);
-
     }
 
     public void UndoLastBuy()
@@ -157,12 +189,9 @@ public class ShopGridUI : MonoBehaviour
     public void SetShop(Shop targetShop)
     {
         shop = targetShop;
-
         selectedSlotIndex = -1;
 
         BuildSlotViews();
         RedrawAllSlots();
-
     }
-
 }

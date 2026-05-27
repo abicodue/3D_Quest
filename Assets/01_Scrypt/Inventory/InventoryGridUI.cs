@@ -6,12 +6,16 @@ public class InventoryGridUI : MonoBehaviour
 {
     [SerializeField]
     private Inventory inventory;
+
     [SerializeField]
     private ItemCatalogManager itemCatalogManager;
+
     [SerializeField]
     private RectTransform slotContainer;
+
     [SerializeField]
     private InventorySlotView slotPrefab;
+
     [SerializeField]
     private ItemUseController itemUseController;
 
@@ -67,8 +71,12 @@ public class InventoryGridUI : MonoBehaviour
 
         for (int viewIndex = 0; viewIndex < slotViewInstances.Count; viewIndex++)
         {
-            InventorySlotData slotData = viewIndex < slots.Count ? slots[viewIndex] : new InventorySlotData { itemId = string.Empty, amount = 0 };
+            InventorySlotData slotData =
+                viewIndex < slots.Count
+                    ? slots[viewIndex]
+                    : new InventorySlotData { itemId = string.Empty, amount = 0 };
 
+            // [변경] Bind 내부에서 ItemData SO를 조회함
             slotViewInstances[viewIndex].Bind(slotData, itemCatalogManager);
             slotViewInstances[viewIndex].SetSelected(viewIndex == selectedSlotIndex);
         }
@@ -133,6 +141,16 @@ public class InventoryGridUI : MonoBehaviour
 
     private void UseSlotItem(int slotIndex)
     {
+        if (inventory == null || itemUseController == null)
+        {
+            return;
+        }
+
+        if (slotIndex < 0 || slotIndex >= inventory.InventorySlots.Count)
+        {
+            return;
+        }
+
         InventorySlotData slotData = inventory.InventorySlots[slotIndex];
 
         if (slotData.IsEmpty)
@@ -145,5 +163,4 @@ public class InventoryGridUI : MonoBehaviour
             inventory.TryRemoveItems(slotData.itemId, 1);
         }
     }
-
 }
